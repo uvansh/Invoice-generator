@@ -4,11 +4,13 @@ import InvoicePreview from './InvoicePreview';
 
 interface PrintLayoutProps {
   invoices: InvoiceData[];
+  id?: string;
+  className?: string;
 }
 
-const PrintLayout: React.FC<PrintLayoutProps> = ({ invoices }) => {
+const PrintLayout: React.FC<PrintLayoutProps> = ({ invoices, id, className = "print-only" }) => {
   return (
-    <div className="print-only bg-white w-full">
+    <div id={id} className={`${className} bg-white w-full`}>
       <div className="flex flex-col w-full">
         {invoices.map((inv) => (
           <div key={inv.id} className="w-full">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, AlertTriangle, X } from 'lucide-react';
+import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, AlertTriangle, X, FileText } from 'lucide-react';
 import InvoiceForm from './components/InvoiceForm';
 import PrintLayout from './components/PrintLayout';
 import SettingsModal from './components/SettingsModal';
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   
   // Validation / Warning Modal State
   const [printWarning, setPrintWarning] = useState<{ isOpen: boolean; missingFields: string[]; invoiceIndex: number } | null>(null);
+  const [pendingAction, setPendingAction] = useState<'print' | 'download' | null>(null);
 
   // Load settings from local storage on boot
   useEffect(() => {
@@ -96,12 +97,48 @@ const App: React.FC = () => {
     }
   };
 
-  const handlePrintRequest = () => {
-    // Check for incomplete fields
+  const executePDFGeneration = async () => {
+    setIsSyncing(true);
+    setSyncMessage('Generating PDF...');
+    
+    const element = document.getElementById('pdf-print-layout');
+    if (!element) {
+        alert("Error: PDF Content not found");
+        setIsSyncing(false);
+        setSyncMessage(null);
+        return;
+    }
+
+    const opt = {
+      margin: 10,
+      filename: `invoices-${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // @ts-ignore
+    if (window.html2pdf) {
+        try {
+             // @ts-ignore
+            await window.html2pdf().set(opt).from(element).save();
+        } catch (e) {
+            console.error(e);
+            alert("Failed to generate PDF. Please try using the Print button and 'Save as PDF' instead.");
+        }
+    } else {
+        alert("PDF generator library not loaded. Please refresh the page.");
+    }
+    
+    setIsSyncing(false);
+    setSyncMessage(null);
+  };
+
+  const handleActionRequest = (action: 'print' | 'download') => {
+    // Check for incomplete fields (Total Amount is now optional)
     const incompleteInvoice = invoices.find(inv => 
       !inv.business.name?.trim() || 
-      !inv.customer.name?.trim() || 
-      !inv.totalAmount?.trim()
+      !inv.customer.name?.trim()
     );
 
     if (incompleteInvoice) {
@@ -109,15 +146,15 @@ const App: React.FC = () => {
       const missing = [];
       if (!incompleteInvoice.business.name?.trim()) missing.push("Business Name");
       if (!incompleteInvoice.customer.name?.trim()) missing.push("Customer Name");
-      if (!incompleteInvoice.totalAmount?.trim()) missing.push("Total Amount");
       
+      setPendingAction(action);
       setPrintWarning({
         isOpen: true,
         missingFields: missing,
         invoiceIndex: index + 1
       });
       
-      // Scroll to the problem area in background
+      // Scroll to the problem area
       const element = document.getElementById(`invoice-card-${incompleteInvoice.id}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -125,17 +162,30 @@ const App: React.FC = () => {
       return;
     }
 
-    // If all good, print immediately (synchronously to ensure browser allows it)
-    window.print();
+    // Execute immediately if valid
+    if (action === 'print') {
+        window.print();
+    } else {
+        executePDFGeneration();
+    }
   };
 
-  const handleForcePrint = () => {
+  const handleConfirmAction = () => {
     setPrintWarning(null);
-    // Minimal delay to ensure modal removal render happens before print dialog
     setTimeout(() => {
-        window.print();
+        if (pendingAction === 'print') {
+            window.print();
+        } else if (pendingAction === 'download') {
+            executePDFGeneration();
+        }
+        setPendingAction(null);
     }, 50);
   };
+
+  const handleCloseWarning = () => {
+      setPrintWarning(null);
+      setPendingAction(null);
+  }
 
   const handleSaveToCloud = async () => {
     if (!mongoConfig.apiKey || !mongoConfig.endpoint) {
@@ -190,7 +240,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white font-sans">
       
-      {/* Warning Modal for Print */}
+      {/* Warning Modal for Print/Download */}
       {printWarning && printWarning.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
@@ -211,16 +261,16 @@ const App: React.FC = () => {
 
               <div className="flex gap-3 justify-end">
                 <button 
-                  onClick={() => setPrintWarning(null)}
+                  onClick={handleCloseWarning}
                   className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   Back to Edit
                 </button>
                 <button 
-                  onClick={handleForcePrint}
+                  onClick={handleConfirmAction}
                   className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
                 >
-                  Print Anyway
+                  {pendingAction === 'download' ? 'Download Anyway' : 'Print Anyway'}
                 </button>
               </div>
             </div>
@@ -277,13 +327,23 @@ const App: React.FC = () => {
               <Plus size={18} />
               Add
             </button>
-            <button 
-              onClick={handlePrintRequest}
-              className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-            >
-              <Printer size={18} />
-              Print
-            </button>
+
+            <div className="flex items-center gap-2">
+                <button 
+                onClick={() => handleActionRequest('download')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-200 text-indigo-700 rounded-lg font-bold hover:bg-indigo-50 transition-all shadow-sm hover:shadow-md"
+                >
+                <FileText size={18} />
+                PDF
+                </button>
+                <button 
+                onClick={() => handleActionRequest('print')}
+                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                >
+                <Printer size={18} />
+                Print
+                </button>
+            </div>
           </div>
         </header>
 
@@ -317,8 +377,13 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Print Layout: Hidden on screen, visible on print */}
+      {/* Print Layout: Standard browser print */}
       <PrintLayout invoices={invoices} />
+
+      {/* PDF Generation Layout: Hidden from screen but accessible to html2pdf */}
+      <div style={{ position: 'fixed', left: '-10000px', top: 0, width: '210mm', backgroundColor: 'white' }}>
+         <PrintLayout invoices={invoices} id="pdf-print-layout" className="" />
+      </div>
 
       {/* Settings Modal */}
       <SettingsModal 

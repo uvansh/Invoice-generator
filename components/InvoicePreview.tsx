@@ -6,53 +6,78 @@ interface InvoicePreviewProps {
 }
 
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice }) => {
+  // Helper to render a field if value exists
+  const renderField = (label: string, value?: string) => {
+    if (!value) return null;
+    return (
+      <div className="text-xs text-black leading-snug">
+        <span className="font-bold mr-1">{label}:</span>{value}
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full bg-white border border-black relative break-inside-avoid print:border-black print:border">
-      {/* Container for the horizontal strip */}
-      <div className="flex flex-row h-[260px] relative overflow-hidden">
+    <div className="w-full bg-white border border-black relative break-inside-avoid print:border-black print:border-2 mb-0">
+      {/* Container for the horizontal strip - dynamic height based on content */}
+      <div className="flex flex-row min-h-[180px] relative overflow-hidden"> 
         
-        {/* Left: Business Info */}
-        <div className="w-1/2 p-6 border-r border-black flex flex-col justify-between">
-          <div className="flex items-start gap-4">
+        {/* Left: Business Info (FROM) */}
+        <div className="w-1/2 p-2 border-r border-black flex flex-col relative">
+          <div className="absolute top-2 left-2">
+             <span className="text-sm font-black uppercase tracking-widest border-b-2 border-black">FROM</span>
+          </div>
+
+          <div className="flex items-start gap-2 mt-8 overflow-hidden">
             {invoice.business.logoUrl && (
               <img 
                 src={invoice.business.logoUrl} 
                 alt="Logo" 
-                className="w-16 h-16 object-contain"
+                className="w-12 h-12 object-contain flex-shrink-0 mt-1"
               />
             )}
-            <div>
-              <h2 className="text-xl font-bold uppercase text-black">{invoice.business.name || 'Business Name'}</h2>
-              <p className="text-sm mt-1 text-black">{invoice.business.addressLine1}</p>
-              <p className="text-sm text-black">
-                {[invoice.business.city, invoice.business.state, invoice.business.pincode].filter(Boolean).join(', ')}
-              </p>
-              <p className="text-sm mt-1 font-medium text-black">Phone: {invoice.business.phone}</p>
+            <div className="flex-1 overflow-hidden">
+              <h2 className="text-base font-bold uppercase text-black leading-tight mb-1 truncate">{invoice.business.name || 'Business Name'}</h2>
+              <div className="space-y-0.5">
+                {renderField('Address', invoice.business.addressLine1)}
+                {renderField('City', invoice.business.city)}
+                {renderField('State', invoice.business.state)}
+                {renderField('Pincode', invoice.business.pincode)}
+                {renderField('Phone', invoice.business.phone)}
+              </div>
             </div>
           </div>
 
-          <div className="mt-4">
-            <div className="text-sm border-t border-black pt-2 flex justify-between text-black">
-               <span><strong>Invoice #:</strong> {invoice.invoiceNumber}</span>
-               <span><strong>Date:</strong> {invoice.date}</span>
-            </div>
-            <div className="text-lg font-bold mt-2 text-black">
-              Total: {invoice.totalAmount}
+          <div className="mt-4 border-t-2 border-black pt-1">
+            <div className="flex justify-between items-end">
+                <div className="text-xs text-black space-y-0.5">
+                    <div><span className="font-bold">Inv #:</span> {invoice.invoiceNumber}</div>
+                    <div><span className="font-bold">Date:</span> {invoice.date}</div>
+                </div>
+                {invoice.totalAmount && (
+                    <div className="text-lg font-black text-black">
+                    {invoice.totalAmount}
+                    </div>
+                )}
             </div>
           </div>
         </div>
 
-        {/* Right: Customer Info */}
-        <div className="w-1/2 p-6 flex flex-col justify-center text-black">
-          <div className="mb-2">
-            <span className="text-xs uppercase tracking-widest border-b border-black pb-1 mb-2 inline-block">Bill To</span>
+        {/* Right: Customer Info (TO) */}
+        <div className="w-1/2 p-2 flex flex-col relative">
+           <div className="absolute top-2 left-2">
+             <span className="text-sm font-black uppercase tracking-widest border-b-2 border-black">TO</span>
           </div>
-          <h2 className="text-2xl font-bold text-black mb-2">{invoice.customer.name || 'Customer Name'}</h2>
-           <p className="text-base text-black">{invoice.customer.addressLine1}</p>
-            <p className="text-base text-black">
-              {[invoice.customer.city, invoice.customer.state, invoice.customer.pincode].filter(Boolean).join(', ')}
-            </p>
-            <p className="text-base mt-2 font-medium text-black">Ph: {invoice.customer.phone}</p>
+
+          <div className="mt-8 flex-1 overflow-hidden">
+            <h2 className="text-xl font-bold text-black leading-tight mb-2 truncate">{invoice.customer.name || 'Customer Name'}</h2>
+             <div className="space-y-0.5">
+                {renderField('Address', invoice.customer.addressLine1)}
+                {renderField('City', invoice.customer.city)}
+                {renderField('State', invoice.customer.state)}
+                {renderField('Pincode', invoice.customer.pincode)}
+                {renderField('Phone', invoice.customer.phone)}
+              </div>
+          </div>
         </div>
       </div>
       
