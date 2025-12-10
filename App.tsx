@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, X } from 'lucide-react';
+import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import InvoiceForm from './components/InvoiceForm';
 import PrintLayout from './components/PrintLayout';
 import SettingsModal from './components/SettingsModal';
@@ -53,8 +53,8 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   
-  // Validation State
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // Validation / Warning Modal State
+  const [printWarning, setPrintWarning] = useState<{ isOpen: boolean; missingFields: string[]; invoiceIndex: number } | null>(null);
 
   // Load settings from local storage on boot
   useEffect(() => {
@@ -96,8 +96,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handlePrint = () => {
-    // Validation Logic
+  const handlePrintRequest = () => {
+    // Check for incomplete fields
     const incompleteInvoice = invoices.find(inv => 
       !inv.business.name?.trim() || 
       !inv.customer.name?.trim() || 
@@ -111,22 +111,30 @@ const App: React.FC = () => {
       if (!incompleteInvoice.customer.name?.trim()) missing.push("Customer Name");
       if (!incompleteInvoice.totalAmount?.trim()) missing.push("Total Amount");
       
-      const errorMsg = `Invoice #${index + 1} is missing: ${missing.join(', ')}`;
-      setValidationError(errorMsg);
-
-      // Scroll to the problematic invoice
+      setPrintWarning({
+        isOpen: true,
+        missingFields: missing,
+        invoiceIndex: index + 1
+      });
+      
+      // Scroll to the problem area in background
       const element = document.getElementById(`invoice-card-${incompleteInvoice.id}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-
-      // Auto dismiss after 5 seconds
-      setTimeout(() => setValidationError(null), 5000);
       return;
     }
 
-    setValidationError(null);
+    // If all good, print immediately (synchronously to ensure browser allows it)
     window.print();
+  };
+
+  const handleForcePrint = () => {
+    setPrintWarning(null);
+    // Minimal delay to ensure modal removal render happens before print dialog
+    setTimeout(() => {
+        window.print();
+    }, 50);
   };
 
   const handleSaveToCloud = async () => {
@@ -163,9 +171,6 @@ const App: React.FC = () => {
     try {
       const fetchedInvoices = await fetchInvoicesFromMongo(mongoConfig);
       if (fetchedInvoices.length > 0) {
-        // Fix potential data inconsistencies if mongo returns generic objects
-        // and ensure we don't have empty IDs? Usually data from DB is good.
-        // We'll replace the current workspace.
         setInvoices(fetchedInvoices);
         setSyncMessage('Loaded!');
       } else {
@@ -185,19 +190,41 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white font-sans">
       
-      {/* Error Toast */}
-      {validationError && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] w-full max-w-md px-4 animate-in slide-in-from-top-4 fade-in duration-300">
-           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg shadow-lg flex items-start gap-3">
-             <AlertCircle className="shrink-0 mt-0.5" size={20} />
-             <div className="flex-1 text-sm font-medium">
-               <h4 className="font-bold text-red-900 mb-1">Cannot Print</h4>
-               {validationError}
-             </div>
-             <button onClick={() => setValidationError(null)} className="text-red-400 hover:text-red-600 transition-colors">
-               <X size={18} />
-             </button>
-           </div>
+      {/* Warning Modal for Print */}
+      {printWarning && printWarning.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4 text-amber-600">
+                <AlertTriangle size={28} />
+                <h3 className="text-lg font-bold text-slate-900">Missing Details</h3>
+              </div>
+              
+              <p className="text-slate-600 text-sm mb-4">
+                Invoice <strong>#{printWarning.invoiceIndex}</strong> is incomplete. The following fields are missing:
+              </p>
+              <ul className="list-disc list-inside text-sm text-slate-700 font-medium bg-amber-50 p-3 rounded-lg mb-6">
+                {printWarning.missingFields.map(field => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  onClick={() => setPrintWarning(null)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Back to Edit
+                </button>
+                <button 
+                  onClick={handleForcePrint}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Print Anyway
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -251,7 +278,7 @@ const App: React.FC = () => {
               Add
             </button>
             <button 
-              onClick={handlePrint}
+              onClick={handlePrintRequest}
               className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
             >
               <Printer size={18} />
