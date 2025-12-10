@@ -11,9 +11,13 @@ interface PrintLayoutProps {
 const PrintLayout: React.FC<PrintLayoutProps> = ({ invoices, id, className = "print-only" }) => {
   return (
     <div id={id} className={`${className} bg-white w-full`}>
-      <div className="flex flex-col w-full">
+      <div className="w-full block">
         {invoices.map((inv) => (
-          <div key={inv.id} className="w-full">
+          <div 
+            key={inv.id} 
+            className="w-full mb-4 break-inside-avoid"
+            style={{ pageBreakInside: 'avoid' }}
+          >
              <InvoicePreview invoice={inv} />
              {/* Add a cut indicator text for clarity, though dashed line is in component */}
              <div className="text-[8px] text-gray-400 text-center py-1 font-mono uppercase tracking-widest">Cut Here</div>

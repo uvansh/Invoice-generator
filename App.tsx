@@ -114,7 +114,8 @@ const App: React.FC = () => {
       filename: `zapinvo-${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
     // @ts-ignore
@@ -288,7 +289,7 @@ const App: React.FC = () => {
                <img 
                  src="/logo.png" 
                  alt="ZapInvo" 
-                 className="h-14 object-contain"
+                 className="h-12 object-contain"
                  onError={(e) => {
                    // Fallback to jpg if png fails, or keep alt text
                    const target = e.target as HTMLImageElement;
@@ -297,6 +298,7 @@ const App: React.FC = () => {
                    }
                  }} 
                />
+               <span className="text-3xl font-extrabold text-slate-900 tracking-tight">ZapInvo</span>
             </div>
             <p className="text-slate-500 mt-1">Lightning fast, AI-powered invoice generation.</p>
           </div>
