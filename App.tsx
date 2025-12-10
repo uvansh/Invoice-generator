@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, AlertTriangle, X, FileText } from 'lucide-react';
+import { Plus, Printer, Settings, CloudUpload, CloudDownload, Loader2, AlertTriangle, FileText } from 'lucide-react';
 import InvoiceForm from './components/InvoiceForm';
 import PrintLayout from './components/PrintLayout';
 import SettingsModal from './components/SettingsModal';
@@ -111,7 +111,7 @@ const App: React.FC = () => {
 
     const opt = {
       margin: 10,
-      filename: `invoices-${new Date().toISOString().split('T')[0]}.pdf`,
+      filename: `zapinvo-${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -283,11 +283,11 @@ const App: React.FC = () => {
         
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
-              <LayoutTemplate className="text-indigo-600" />
-              SnapInvoice
-            </h1>
-            <p className="text-slate-500 mt-1">Generate concise, printable invoice strips.</p>
+            {/* Logo Image */}
+            <div className="flex items-center gap-2 mb-2">
+               <img src="/logo.png" alt="ZapInvo" className="h-12 object-contain" />
+            </div>
+            <p className="text-slate-500 mt-1">Lightning fast, AI-powered invoice generation.</p>
           </div>
           
           <div className="flex flex-wrap gap-3 items-center">

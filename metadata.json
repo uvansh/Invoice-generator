@@ -1,5 +1,5 @@
 {
-  "name": "Copy of SnapInvoice Generator",
-  "description": "A streamlined invoice generator designed for high-efficiency printing. Create multiple invoices on a single sheet with a simple, cut-friendly layout. Features AI-powered auto-fill for rapid data entry.",
+  "name": "ZapInvo",
+  "description": "Lightning fast invoice generator. Create, print, and save multiple invoices instantly with AI-powered auto-fill and optimized layouts.",
   "requestFramePermissions": []
 }
