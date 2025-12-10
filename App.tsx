@@ -288,7 +288,7 @@ const App: React.FC = () => {
                <img 
                  src="/logo.png" 
                  alt="ZapInvo" 
-                 className="h-12 object-contain"
+                 className="h-14 object-contain"
                  onError={(e) => {
                    // Fallback to jpg if png fails, or keep alt text
                    const target = e.target as HTMLImageElement;
@@ -297,7 +297,6 @@ const App: React.FC = () => {
                    }
                  }} 
                />
-               <span className="text-3xl font-extrabold text-slate-900 tracking-tight">ZapInvo</span>
             </div>
             <p className="text-slate-500 mt-1">Lightning fast, AI-powered invoice generation.</p>
           </div>
