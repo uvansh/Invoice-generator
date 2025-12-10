@@ -1,0 +1,308 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Printer, LayoutTemplate, Settings, CloudUpload, CloudDownload, Loader2, AlertCircle, X } from 'lucide-react';
+import InvoiceForm from './components/InvoiceForm';
+import PrintLayout from './components/PrintLayout';
+import SettingsModal from './components/SettingsModal';
+import { InvoiceData, BusinessDetails, MongoConfig } from './types';
+import { saveInvoiceToMongo, fetchInvoicesFromMongo } from './services/mongoService';
+import { v4 as uuidv4 } from 'uuid';
+
+// Helper to generate a blank invoice
+const createEmptyInvoice = (defaultBusiness: BusinessDetails): InvoiceData => ({
+  id: uuidv4(),
+  invoiceNumber: '',
+  date: new Date().toISOString().split('T')[0],
+  totalAmount: '',
+  business: { ...defaultBusiness },
+  customer: {
+    name: '',
+    addressLine1: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phone: '',
+  },
+});
+
+// Default Mongo Config (Placeholders)
+const DEFAULT_MONGO_CONFIG: MongoConfig = {
+  apiKey: '',
+  endpoint: '',
+  dataSource: 'Cluster0',
+  database: 'invoice_app',
+  collection: 'invoices'
+};
+
+const App: React.FC = () => {
+  // Global default business state to auto-fill new invoices
+  const [defaultBusiness, setDefaultBusiness] = useState<BusinessDetails>({
+    name: 'Your Company LLC',
+    addressLine1: '123 Business Rd',
+    city: 'New York',
+    state: 'NY',
+    pincode: '10001',
+    phone: '(555) 123-4567',
+    logoUrl: '',
+  });
+
+  const [invoices, setInvoices] = useState<InvoiceData[]>([createEmptyInvoice(defaultBusiness)]);
+  
+  // Settings & Sync State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [mongoConfig, setMongoConfig] = useState<MongoConfig>(DEFAULT_MONGO_CONFIG);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  
+  // Validation State
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Load settings from local storage on boot
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('mongoConfig');
+    if (savedConfig) {
+      try {
+        setMongoConfig(JSON.parse(savedConfig));
+      } catch (e) {
+        console.error("Failed to parse saved config", e);
+      }
+    }
+  }, []);
+
+  // Update default business when first invoice changes
+  useEffect(() => {
+    if (invoices.length > 0) {
+      setDefaultBusiness(invoices[0].business);
+    }
+  }, [invoices]);
+
+  const saveConfig = (newConfig: MongoConfig) => {
+    setMongoConfig(newConfig);
+    localStorage.setItem('mongoConfig', JSON.stringify(newConfig));
+  };
+
+  const addInvoice = () => {
+    setInvoices([...invoices, createEmptyInvoice(defaultBusiness)]);
+  };
+
+  const updateInvoice = (updated: InvoiceData) => {
+    setInvoices(invoices.map(inv => inv.id === updated.id ? updated : inv));
+  };
+
+  const deleteInvoice = (id: string) => {
+    if (invoices.length === 1) {
+       setInvoices([createEmptyInvoice(defaultBusiness)]);
+    } else {
+      setInvoices(invoices.filter(inv => inv.id !== id));
+    }
+  };
+
+  const handlePrint = () => {
+    // Validation Logic
+    const incompleteInvoice = invoices.find(inv => 
+      !inv.business.name?.trim() || 
+      !inv.customer.name?.trim() || 
+      !inv.totalAmount?.trim()
+    );
+
+    if (incompleteInvoice) {
+      const index = invoices.indexOf(incompleteInvoice);
+      const missing = [];
+      if (!incompleteInvoice.business.name?.trim()) missing.push("Business Name");
+      if (!incompleteInvoice.customer.name?.trim()) missing.push("Customer Name");
+      if (!incompleteInvoice.totalAmount?.trim()) missing.push("Total Amount");
+      
+      const errorMsg = `Invoice #${index + 1} is missing: ${missing.join(', ')}`;
+      setValidationError(errorMsg);
+
+      // Scroll to the problematic invoice
+      const element = document.getElementById(`invoice-card-${incompleteInvoice.id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // Auto dismiss after 5 seconds
+      setTimeout(() => setValidationError(null), 5000);
+      return;
+    }
+
+    setValidationError(null);
+    window.print();
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!mongoConfig.apiKey || !mongoConfig.endpoint) {
+      setIsSettingsOpen(true);
+      return;
+    }
+    
+    setIsSyncing(true);
+    setSyncMessage('Saving...');
+    try {
+      // Save all current invoices
+      await Promise.all(invoices.map(inv => saveInvoiceToMongo(inv, mongoConfig)));
+      setSyncMessage('Saved!');
+      setTimeout(() => setSyncMessage(null), 2000);
+    } catch (error: any) {
+      console.error(error);
+      setSyncMessage('Error Saving');
+      setTimeout(() => setSyncMessage(null), 3000);
+      alert(`Failed to save: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleLoadFromCloud = async () => {
+     if (!mongoConfig.apiKey || !mongoConfig.endpoint) {
+      setIsSettingsOpen(true);
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncMessage('Loading...');
+    try {
+      const fetchedInvoices = await fetchInvoicesFromMongo(mongoConfig);
+      if (fetchedInvoices.length > 0) {
+        // Fix potential data inconsistencies if mongo returns generic objects
+        // and ensure we don't have empty IDs? Usually data from DB is good.
+        // We'll replace the current workspace.
+        setInvoices(fetchedInvoices);
+        setSyncMessage('Loaded!');
+      } else {
+        setSyncMessage('No invoices found');
+      }
+      setTimeout(() => setSyncMessage(null), 2000);
+    } catch (error: any) {
+      console.error(error);
+      setSyncMessage('Error Loading');
+      setTimeout(() => setSyncMessage(null), 3000);
+      alert(`Failed to load: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 print:bg-white font-sans">
+      
+      {/* Error Toast */}
+      {validationError && (
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] w-full max-w-md px-4 animate-in slide-in-from-top-4 fade-in duration-300">
+           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg shadow-lg flex items-start gap-3">
+             <AlertCircle className="shrink-0 mt-0.5" size={20} />
+             <div className="flex-1 text-sm font-medium">
+               <h4 className="font-bold text-red-900 mb-1">Cannot Print</h4>
+               {validationError}
+             </div>
+             <button onClick={() => setValidationError(null)} className="text-red-400 hover:text-red-600 transition-colors">
+               <X size={18} />
+             </button>
+           </div>
+        </div>
+      )}
+
+      {/* Screen Layout: Editor */}
+      <div className="no-print max-w-5xl mx-auto px-4 py-8">
+        
+        <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
+              <LayoutTemplate className="text-indigo-600" />
+              SnapInvoice
+            </h1>
+            <p className="text-slate-500 mt-1">Generate concise, printable invoice strips.</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Database Controls */}
+            <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-200 mr-2 shadow-sm">
+               <button 
+                onClick={handleSaveToCloud}
+                disabled={isSyncing}
+                title="Save All to Database"
+                className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 rounded-md transition-colors disabled:opacity-50"
+              >
+                {isSyncing ? <Loader2 className="animate-spin" size={20} /> : <CloudUpload size={20} />}
+              </button>
+              <button 
+                onClick={handleLoadFromCloud}
+                disabled={isSyncing}
+                title="Load from Database"
+                className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 rounded-md transition-colors disabled:opacity-50"
+              >
+                <CloudDownload size={20} />
+              </button>
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                title="Database Settings"
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors border-l border-slate-100 ml-1"
+              >
+                <Settings size={20} />
+              </button>
+            </div>
+            {syncMessage && <span className="text-xs font-semibold text-indigo-600 animate-pulse mr-2">{syncMessage}</span>}
+
+            {/* Main Actions */}
+            <button 
+              onClick={addInvoice}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
+            >
+              <Plus size={18} />
+              Add
+            </button>
+            <button 
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+            >
+              <Printer size={18} />
+              Print
+            </button>
+          </div>
+        </header>
+
+        <main className="space-y-6">
+          {invoices.map((invoice, index) => (
+            <div key={invoice.id} id={`invoice-card-${invoice.id}`} className="relative scroll-mt-24">
+               {/* Visual counter on the side for desktop */}
+               <div className="hidden xl:block absolute -left-12 top-6 text-slate-300 font-bold text-4xl select-none">
+                 {index + 1}
+               </div>
+               <InvoiceForm 
+                 invoice={invoice} 
+                 onUpdate={updateInvoice} 
+                 onDelete={() => deleteInvoice(invoice.id)}
+                 defaultBusiness={defaultBusiness}
+               />
+            </div>
+          ))}
+
+          <div className="flex justify-center mt-8 pb-12">
+            <button 
+              onClick={addInvoice}
+              className="flex flex-col items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors group"
+            >
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-300 group-hover:border-indigo-400 flex items-center justify-center">
+                <Plus size={24} />
+              </div>
+              <span className="font-medium text-sm">Add Another Invoice</span>
+            </button>
+          </div>
+        </main>
+      </div>
+
+      {/* Print Layout: Hidden on screen, visible on print */}
+      <PrintLayout invoices={invoices} />
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        config={mongoConfig}
+        onSave={saveConfig}
+      />
+
+    </div>
+  );
+};
+
+export default App;
